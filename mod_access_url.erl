@@ -40,15 +40,10 @@ observe_url_rewrite(#url_rewrite{dispatch=Dispatch, args=Args}, Url, Context) ->
 	end.
 
 observe_request_context(request_context, Context, _Context) ->
-	case z_auth:is_auth(Context) of
-		false ->
-			case z_convert:to_bool(z_context:get_q("z_access_url", Context)) of
-				true ->
-					sudo_if_sigok(Context);
-				false ->
-					Context
-			end;
+	case z_convert:to_bool(z_context:get_q("z_access_url", Context)) of
 		true ->
+			logon_if_sigok(Context);
+		false ->
 			Context
 	end.
 
@@ -90,18 +85,18 @@ token_user(Token, Context) ->
 			{ok, UserId, Secret}
 	end.
 
-sudo_if_sigok(Context) ->
+logon_if_sigok(Context) ->
 	Token = z_convert:to_binary(z_context:get_q(z_access_url_token, Context)),
 	case token_user(Token, Context) of
 		{ok, UserId, Secret} ->
 			Nonce = z_context:get_q(z_access_url_nonce, Context),
 			Dispatch = z_context:get_q(zotonic_dispatch, Context),
 			Sig = z_convert:to_binary(z_context:get_q(z_access_url_sig, Context)),
-			case sign(Dispatch, z_context:get_q_all_noz(Context), Token, Nonce, Secret) of
+			case sign(Dispatch, get_q_all(Context), Token, Nonce, Secret) of
 				Sig ->
 					z_acl:logon(UserId, Context);
 				_Other ->
-					lager:warning("Non matching sign on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
+					lager:warning("Non matching signature on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
 					Context
 			end;
 		{error, enoent} ->
@@ -120,6 +115,15 @@ sign(Dispatch, Args, Token, Nonce, Secret) ->
 					z_convert:to_binary(Secret)
 				]),
      base64:encode(crypto:hash(sha256, Data)).
+
+get_q_all(Context) ->
+	Args = z_context:get_q_all_noz(Context),
+	case wrq:disp_path(z_context:get_reqdata(Context)) of
+		[] ->
+			Args;
+		Path ->
+			[{star,Path}|Args]
+	end.
 
 filter_args([], Acc) ->
 	lists:sort(Acc);
