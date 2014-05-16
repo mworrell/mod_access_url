@@ -94,10 +94,10 @@ logon_if_sigok(Context) ->
 			Nonce = z_context:get_q(z_access_url_nonce, Context),
 			Dispatch = z_context:get_q(zotonic_dispatch, Context),
 			Sig = z_convert:to_binary(z_context:get_q(z_access_url_sig, Context)),
-			case sign(Dispatch, get_q_all(Context), Token, Nonce, Secret) of
-				Sig ->
+			case is_valid_signature(Sig, Dispatch, get_q_all(Context), Token, Nonce, Secret) of
+				true ->
 					z_acl:logon(UserId, Context);
-				_Other ->
+				false ->
 					lager:warning("Non matching signature on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
 					Context
 			end;
@@ -106,10 +106,27 @@ logon_if_sigok(Context) ->
 			Context
 	end.
 
+is_valid_signature(Sig, Dispatch, Args, Token, Nonce, Secret) ->
+	ArgsFiltered = filter_args(Args, []),
+	case sign_args(Dispatch, ArgsFiltered, Token, Nonce, Secret) of
+		Sig ->
+			true;
+		_NonMatchSig ->
+			% For a short time there was a version where use_absolute_url
+			% was not filtered from the signature generation.
+			% Retry with the use_absolute_url argument to check for these
+			% wrongly generated signatures.
+			ArgsFiltered1 = lists:sort([{<<"use_absolute_url">>, <<"true">>}|ArgsFiltered]),
+			sign_args(Dispatch, ArgsFiltered1, Token, Nonce, Secret) =:= Sig
+	end.
+
+
 sign(Dispatch, Args, Token, Nonce, Secret) ->
-	Args1 = filter_args(Args, []),
+	sign_args(Dispatch, filter_args(Args, []), Token, Nonce, Secret).
+
+sign_args(Dispatch, Args, Token, Nonce, Secret) ->
 	Data = term_to_binary([
-					Args1,
+					Args,
 					signed, 
 					z_convert:to_binary(Dispatch),
 					z_convert:to_binary(Nonce),
