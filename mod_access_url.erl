@@ -35,6 +35,8 @@ observe_url_rewrite(#url_rewrite{dispatch=Dispatch, args=Args}, Url, Context) ->
 	case proplists:get_value(z_access_url, Args) of
 		true ->
 			maybe_add_token(Dispatch, Args, Url, Context);
+		UserId when is_integer(UserId) ->
+			maybe_add_token(Dispatch, Args, Url, z_acl:logon(UserId, Context));
 		_ ->
 			Url
 	end.
@@ -140,6 +142,8 @@ filter_args([{"zotonic_"++_,_}|Args], Acc) ->
 filter_args([{<<"z_language">>,_}|Args], Acc) ->
 	filter_args(Args, Acc);
 filter_args([{<<"zotonic_", _/binary>>,_}|Args], Acc) ->
+	filter_args(Args, Acc);
+filter_args([{use_absolute_url,_}|Args], Acc) ->
 	filter_args(Args, Acc);
 filter_args([{z_language,_}|Args], Acc) ->
 	filter_args(Args, Acc);
