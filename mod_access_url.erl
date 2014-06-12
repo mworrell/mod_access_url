@@ -108,8 +108,11 @@ logon_if_sigok(Context) ->
 
 is_valid_signature(Sig, Dispatch, Args, Token, Nonce, Secret) ->
 	ArgsFiltered = filter_args(Args, []),
+	Sig1 = fix_outlook_sig(Sig),
 	case sign_args(Dispatch, ArgsFiltered, Token, Nonce, Secret) of
 		Sig ->
+			true;
+		Sig1 ->
 			true;
 		_NonMatchSig ->
 			% For a short time there was a version where use_absolute_url
@@ -179,3 +182,7 @@ filter_args([{K,V}|Args], Acc) ->
 			V1 = z_convert:to_binary(V), 
 			filter_args(Args, [{K1,V1}|Acc])
 	end.
+
+%% Outlook.com decodes en re-combines urls, without percent-encoding.
+fix_outlook_sig(Sig) ->
+	binary:replace(Sig, <<" ">>, <<"+">>).
