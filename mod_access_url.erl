@@ -96,7 +96,7 @@ logon_if_sigok(Context) ->
 			Sig = z_convert:to_binary(z_context:get_q(z_access_url_sig, Context)),
 			case is_valid_signature(Sig, Dispatch, get_q_all(Context), Token, Nonce, Secret) of
 				true ->
-					z_acl:logon(UserId, Context);
+					z_context:set_noindex_header(true, z_acl:logon(UserId, Context));
 				false ->
 					lager:warning("Non matching signature on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
 					Context
