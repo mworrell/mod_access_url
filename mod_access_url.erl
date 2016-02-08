@@ -1,8 +1,8 @@
 %% @author Marc Worrell <marc@worrell.nl>
-%% @copyright 2014 Marc Worrell
+%% @copyright 2014-2016 Marc Worrell
 %% @doc Access an url with the credentials of another user.
 
-%% Copyright 2014 Marc Worrell
+%% Copyright 2014-2016 Marc Worrell
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -31,7 +31,17 @@
 
 -include_lib("zotonic.hrl").
 
+observe_url_rewrite(#url_rewrite{dispatch=image, args=Args}, Url, Context) ->
+	case z_context:get(is_z_access_url, Context) of
+		true ->
+			maybe_add_token(image, Args, Url, Context);
+		_False ->
+			rewrite_if_access_url(image, Args, Url, Context)
+	end;
 observe_url_rewrite(#url_rewrite{dispatch=Dispatch, args=Args}, Url, Context) ->
+    rewrite_if_access_url(Dispatch, Args, Url, Context).
+
+rewrite_if_access_url(Dispatch, Args, Url, Context) ->
 	case proplists:get_value(z_access_url, Args) of
 		true ->
 			maybe_add_token(Dispatch, Args, Url, Context);
@@ -58,10 +68,15 @@ maybe_add_token(Dispatch, Args, Url, Context) ->
 			Nonce = z_convert:to_binary(z_ids:id()),
 			Sig = sign(Dispatch, Args, Token, Nonce, Secret),
 			Sig1 = z_convert:to_binary(z_utils:url_encode(Sig)),
-			<<Url/binary,
-				"&z_access_url_token=", Token/binary,
-				"&z_access_url_nonce=", Nonce/binary,
-				"&z_access_url_sig=", Sig1/binary>>
+			ExtraArgs = <<"z_access_url_token=", Token/binary,
+						  "&z_access_url_nonce=", Nonce/binary,
+						  "&z_access_url_sig=", Sig1/binary>>,
+			case binary:match(Url, <<"?">>) of
+				nomatch ->
+					<<Url/binary, $?, ExtraArgs/binary>>;
+				_ ->
+					<<Url/binary, $&, ExtraArgs/binary>>
+			end
 	end.
 
 user_secret(UserId, Context) ->
@@ -96,7 +111,8 @@ logon_if_sigok(Context) ->
 			Sig = z_convert:to_binary(z_context:get_q(z_access_url_sig, Context)),
 			case is_valid_signature(Sig, Dispatch, get_q_all(Context), Token, Nonce, Secret) of
 				true ->
-					z_context:set_noindex_header(true, z_acl:logon(UserId, Context));
+					Context1 = z_context:set(is_z_access_url, true, Context),
+					z_context:set_noindex_header(true, z_acl:logon(UserId, Context1));
 				false ->
 					lager:warning("Non matching signature on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
 					Context
