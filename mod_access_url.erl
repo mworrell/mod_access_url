@@ -102,23 +102,29 @@ token_user(Token, Context) ->
     end.
 
 logon_if_sigok(Context) ->
-    Token = z_convert:to_binary(z_context:get_q(z_access_url_token, Context)),
-    case token_user(Token, Context) of
-        {ok, UserId, Secret} ->
-            Nonce = z_context:get_q(z_access_url_nonce, Context),
-            Dispatch = z_context:get_q(zotonic_dispatch, Context),
-            Sig = z_convert:to_binary(z_context:get_q(z_access_url_sig, Context)),
-            case is_valid_signature(Sig, Dispatch, get_q_all(Context), Token, Nonce, Secret) of
-                true ->
-                    Context1 = z_context:set(is_z_access_url, true, Context),
-                    z_context:set_noindex_header(true, z_acl:logon(UserId, Context1));
-                false ->
-                    lager:warning("Non matching signature on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
+    case z_context:get_controller_module(Context) of
+        controller_http_error ->
+            % Ignore
+            Context;
+        _ ->
+            Token = z_convert:to_binary(z_context:get_q(z_access_url_token, Context)),
+            case token_user(Token, Context) of
+                {ok, UserId, Secret} ->
+                    Nonce = z_context:get_q(z_access_url_nonce, Context),
+                    Dispatch = z_context:get_q(zotonic_dispatch, Context),
+                    Sig = z_convert:to_binary(z_context:get_q(z_access_url_sig, Context)),
+                    case is_valid_signature(Sig, Dispatch, get_q_all(Context), Token, Nonce, Secret) of
+                        true ->
+                            Context1 = z_context:set(is_z_access_url, true, Context),
+                            z_context:set_noindex_header(true, z_acl:logon(UserId, Context1));
+                        false ->
+                            lager:warning("Non matching signature on request ~p", [wrq:raw_path(z_context:get_reqdata(Context))]),
+                            throw({stop_request, 403})
+                    end;
+                {error, enoent} ->
+                    lager:info("Unknown url_access_token \"~p\"", [Token]),
                     Context
-            end;
-        {error, enoent} ->
-            lager:info("Unknown url_access_token \"~p\"", [Token]),
-            Context
+            end
     end.
 
 is_valid_signature(Sig, Dispatch, Args, Token, Nonce, Secret) ->
@@ -154,13 +160,7 @@ sign_args(Dispatch, Args, Token, Nonce, Secret) ->
      base64:encode(crypto:hash(sha256, Data)).
 
 get_q_all(Context) ->
-    Args = z_context:get_q_all_noz(Context),
-    case wrq:disp_path(z_context:get_reqdata(Context)) of
-        [] ->
-            Args;
-        Path ->
-            [{star,Path}|Args]
-    end.
+    z_context:get_q_all_noz(Context).
 
 filter_args([], Acc) ->
     lists:sort(Acc);
@@ -193,8 +193,11 @@ filter_args([{K,V}|Args], Acc) ->
     case K1 of
         <<"z_access_url", _/binary>> ->
             filter_args(Args, Acc);
+        <<"*">> ->
+            V1 = z_convert:to_binary(V),
+            filter_args(Args, [{<<"star">>,V1}|Acc]);
         _ ->
-            V1 = z_convert:to_binary(V), 
+            V1 = z_convert:to_binary(V),
             filter_args(Args, [{K1,V1}|Acc])
     end.
 
