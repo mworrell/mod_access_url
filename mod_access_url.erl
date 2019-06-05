@@ -157,7 +157,7 @@ sign_args(Dispatch, Args, Token, Nonce, Secret) ->
                     z_convert:to_binary(Token),
                     z_convert:to_binary(Secret)
                 ]),
-     base64:encode(crypto:hash(sha256, Data)).
+    base64:encode(crypto:hash(sha256, Data)).
 
 get_q_all(Context) ->
     z_context:get_q_all_noz(Context).
@@ -165,7 +165,7 @@ get_q_all(Context) ->
 filter_args([], Acc) ->
     lists:sort(Acc);
 filter_args([Token|Args], Acc) when is_atom(Token) ->
-    filter_args([{Token,<<"true">>}|Args], Acc);
+    filter_args([{z_convert:to_binary(Token),<<"true">>}|Args], Acc);
 filter_args([{"z_access_url"++_,_}|Args], Acc) ->
     filter_args(Args, Acc);
 filter_args([{<<"z_access_url", _/binary>>,_}|Args], Acc) ->
@@ -188,6 +188,9 @@ filter_args([{zotonic_dispatch_path,_}|Args], Acc) ->
     filter_args(Args, Acc);
 filter_args([{zotonic_dispatch_path_rewrite,_}|Args], Acc) ->
     filter_args(Args, Acc);
+filter_args([{star, V}|Args], Acc) ->
+    V1 = z_convert:to_binary( z_url:url_decode(z_convert:to_list(V)) ),
+    filter_args(Args, [{<<"star">>,V1}|Acc]);
 filter_args([{K,V}|Args], Acc) ->
     K1 = z_convert:to_binary(K),
     case K1 of
