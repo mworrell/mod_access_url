@@ -40,20 +40,17 @@ m_find_value(Secs, #m{ value = token }, Context) when is_integer(Secs) ->
         undefined ->
             undefined;
         UserId ->
-            encode_logon_token(UserId, Secs, Context)
+            case encode_logon_token(UserId, Secs, Context) of
+                {ok, Token} -> Token;
+                {error, _} -> undefined
+            end
     end.
 
 m_to_list(#m{}, _Context) ->
     [].
 
-m_value(#m{ value = token }, Context) ->
-    case z_acl:user(Context) of
-        undefined ->
-            undefined;
-        UserId ->
-            encode_logon_token(UserId, 3600, Context)
-    end.
-
+m_value(#m{ value = token } = M, Context) ->
+    m_find_value(3600, M, Context).
 
 -spec decode_logon_token(binary()|string(), z:context()) -> {ok, m_rsc:resource_id()} | {error, term()}.
 decode_logon_token(Token, Context) when is_binary(Token) ->

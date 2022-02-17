@@ -27,12 +27,19 @@ access_url(Url, Context) ->
     access_url(Url, 3600, Context).
 
 access_url(Url, Secs, Context) ->
-    Seconds = z_convert:to_integer(Secs),
-    case m_access_url:encode_logon_token(z_acl:user(Context), Seconds, Context) of
-        {ok, Token} ->
-            RUrl = z_dispatcher:url_for(access_url, [ {token, Token}, {p, Url} ], Context),
-            z_context:abs_url(RUrl, Context);
-        {error, _} ->
+    try
+        Url1 = z_string:trim(iolist_to_binary(Url)),
+        Seconds = z_convert:to_integer(Secs),
+        case m_access_url:encode_logon_token(z_acl:user(Context), Seconds, Context) of
+            {ok, Token} ->
+                RUrl = z_dispatcher:url_for(access_url, [ {token, Token}, {p, Url1} ], Context),
+                z_context:abs_url(RUrl, Context);
+            {error, _} ->
+                <<>>
+        end
+    catch
+        _:_ ->
+            lager:warning("access_url filter on non iodata: ~p", [ Url ]),
             <<>>
     end.
 
