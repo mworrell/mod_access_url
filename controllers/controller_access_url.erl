@@ -72,9 +72,5 @@ previously_existed(ReqData, Context) ->
 
 moved_temporarily(ReqData, Context) ->
     Location = z_context:get_q("p", Context, ""),
-    Location1 = cleanup_url(Location),
-    {{true, z_context:abs_url(Location1, Context)}, ReqData, Context}.
-
-cleanup_url(undefined) -> "/";
-cleanup_url("") -> "/";
-cleanup_url(Url) -> z_html:noscript(Url).
+    Location1 = z_context:site_url(Location, Context),
+    {{true, Location1}, ReqData, Context}.

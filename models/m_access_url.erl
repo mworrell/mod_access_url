@@ -76,15 +76,20 @@ decode_logon_token(Token, Context) ->
     decode_logon_token(z_convert:to_binary(Token), Context).
 
 -spec encode_logon_token(m_rsc:resource_id(), integer(), z:context()) -> {ok, binary()} | {error, term()}.
-encode_logon_token(UserId, Seconds, Context) ->
-    case user_secret(UserId, Context) of
-        {ok, UserSecret} ->
-            {ok, ConfigSecret} = config_secret(Context),
-            Term = {u, UserId, UserSecret, z_datetime:timestamp() + Seconds},
-            Token = termit:encode_base64(Term, ConfigSecret),
-            {ok, Token};
-        {error, _} = Error ->
-            Error
+encode_logon_token(UserId, Seconds, Context) when is_integer(UserId) ->
+    case m_rsc:p(UserId, is_published_date, Context) of
+        true ->
+            case user_secret(UserId, Context) of
+                {ok, UserSecret} ->
+                    {ok, ConfigSecret} = config_secret(Context),
+                    Term = {u, UserId, UserSecret, z_datetime:timestamp() + Seconds},
+                    Token = termit:encode_base64(Term, ConfigSecret),
+                    {ok, Token};
+                {error, _} = Error ->
+                    Error
+            end;
+        false ->
+            {error, unpublished}
     end.
 
 -spec config_secret(z:context()) -> {ok, binary()}.
