@@ -18,3 +18,21 @@ In the template it can be created by adding the `z_access_url` argument:
     {% url page id=20652 z_access_url %}
 
 The `z_access_url` argument is picked up by `mod_access_url` which then signs the generated url with the `z_access_url_nonce`, `z_access_url_token` and `z_access_url_sig` arguments. Note that there must be an authenticated user to be able to sign an url.
+
+Logon via token
+---------------
+
+With this module it is possible to generate a unique url to login via a link. The url
+expires automatically after a set time.
+
+To generate an URL that is valid for 3600 seconds:
+
+    {% filter access_url %}{% url admin_edit_rsc id=m.acl.user %}{% endfilter %}
+
+And to use your own expiry:
+
+    {% filter access_url:7200 %}{% url admin_edit_rsc id=m.acl.user %}{% endfilter %}
+
+Or use the model to generate a token:
+
+    {% url access_url token=m.access_url.token[3600] p="/some/url" %}
